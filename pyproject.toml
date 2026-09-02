@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "firm-mmtta"
+version = "0.1.0"
+description = "Backpropagation-free multimodal test-time adaptation with frozen inference and rebalanced marginals"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Xiaomin Deng"}]
+dependencies = [
+  "numpy==1.26.4",
+  "timm==0.6.5",
+  "tqdm>=4.66,<5",
+  "Pillow>=10,<13",
+]
+
+[project.scripts]
+firm-eval = "run_firm:main"
+
+[tool.setuptools]
+py-modules = ["dataloader", "run_firm"]
+
+[tool.setuptools.packages.find]
+include = ["firm*", "models*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
