@@ -22,7 +22,7 @@ def main() -> None:
 
     rows = []
     for dataset in ("ks50", "vggsound"):
-        for method in ("source", "rebalance", "firm"):
+        for method in ("source", "firm"):
             means = {}
             for modality in ("none", "video", "audio"):
                 values = grouped[(dataset, method, modality)]
@@ -56,4 +56,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

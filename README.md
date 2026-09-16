@@ -28,6 +28,8 @@ The final prediction is a product of the rebalanced posterior and the three
 prototype posteriors. The network parameters are unchanged throughout the
 stream.
 
+![Optimization-based MM-TTA and FIRM](assets/optimization_comparison.png)
+
 ## Results
 
 The following numbers use the same locally generated corruption streams,
@@ -57,6 +59,16 @@ is measured with `torch.cuda.max_memory_allocated`.
 |  |  | FIRM | 49.81 | 1.01 |
 | VGGSound-C | Audio | AdaPGC | 104.11 | 20.11 |
 |  |  | FIRM | 16.88 | 1.01 |
+
+Sequential component results are provided below. The prototype stage is a
+small refinement on top of marginal rebalancing rather than a standalone
+adaptation method.
+
+| Variant | K50 video | K50 audio | VGG video | VGG audio |
+| --- | ---: | ---: | ---: | ---: |
+| Source | 60.487 | 69.248 | 56.035 | 25.057 |
+| Marginal rebalancing | 66.707 | 73.290 | 58.206 | 40.087 |
+| Full FIRM | **66.832** | **73.432** | **58.296** | **40.118** |
 
 ## Installation
 
@@ -147,7 +159,7 @@ python run_firm.py \
   --output-dir outputs/ks50_video_gaussian_noise
 ```
 
-`result.csv` contains Source, marginal-rebalancing, and full-FIRM accuracy,
+`result.csv` contains Source and full-FIRM accuracy,
 along with wall time, CUDA time, throughput, and peak allocated GPU memory.
 Ground-truth labels are not passed to FIRM; they are used only to compute the
 reported accuracy.

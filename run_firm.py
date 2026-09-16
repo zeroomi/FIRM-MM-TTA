@@ -29,7 +29,7 @@ VIDEO_CORRUPTIONS = (
 AUDIO_CORRUPTIONS = (
     "gaussian_noise", "traffic", "crowd", "rain", "thunder", "wind"
 )
-METHODS = ("source", "rebalance", "firm")
+METHODS = ("source", "firm")
 
 
 def parse_args() -> argparse.Namespace:
@@ -199,7 +199,8 @@ def run_stream(
                 features["logits"][index:index + 1],
             )
             target = targets[index:index + 1]
-            for name, probability in outputs.items():
+            for name in METHODS:
+                probability = outputs[name]
                 correct[name].add_(probability.argmax(dim=1).eq(target).sum())
             samples += 1
         cuda_end.record()
@@ -273,4 +274,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
