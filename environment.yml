@@ -1,4 +1,4 @@
-name: firm
+name: firm-mmtta
 channels:
   - conda-forge
 dependencies:
@@ -10,4 +10,3 @@ dependencies:
       - torchvision==0.20.1
       - torchaudio==2.5.1
       - -r requirements.txt
-

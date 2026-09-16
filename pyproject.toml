@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "firm-mmtta"
 version = "0.1.0"
-description = "Backpropagation-free multimodal test-time adaptation with frozen inference and rebalanced marginals"
+description = "Frozen, backpropagation-free multimodal test-time adaptation"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -28,4 +28,3 @@ include = ["firm*", "models*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-

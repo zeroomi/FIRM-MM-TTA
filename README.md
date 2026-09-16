@@ -1,99 +1,126 @@
-# FIRM: Frozen Inference via Rebalanced Marginals
+# FIRM-MM-TTA
 
-Official implementation of **FIRM**, a backpropagation-free method for online
-multimodal test-time adaptation under audio or video corruption.
+Code for **FIRM: Frozen Inference with Rebalanced Marginals for
+Backpropagation-Free Multimodal Test-Time Adaptation**.
 
-FIRM freezes the audio-visual network and adapts only a lightweight causal
-decision state. It combines:
+FIRM keeps the source audio-visual network fixed at test time. Adaptation is
+performed on its output probabilities and features, without gradients or
+optimizer updates. The current implementation uses CAV-MAE as the source
+model and follows the Kinetics50-C and VGGSound-C protocol used by READ and
+AdaPGC.
 
-1. **Gated marginal rebalancing**, which corrects persistent class-frequency
-   collapse in the prediction prefix.
-2. **Query-before-write multiview prototypes**, which conservatively refines
-   each decision using audio, video, and fusion features from past samples.
+![FIRM method](assets/method_overview.png)
 
-No labels, corruption identities, damaged-modality annotations, gradients,
-optimizer state, or network updates are used at test time.
+## Method
 
-![FIRM overview](assets/method_overview.png)
+For each sample, the frozen model returns a source posterior and audio,
+video, and fused features. FIRM maintains one causal decision state with two
+parts:
+
+- Marginal rebalancing projects the observed posterior prefix toward a
+  reference class prior. A drift gate interpolates between the source and
+  projected posteriors.
+- Prototype refinement compares the current features with class prototypes
+  accumulated from earlier samples. The prediction is produced before the
+  current sample is written to the prototype state.
+
+The final prediction is a product of the rebalanced posterior and the three
+prototype posteriors. The network parameters are unchanged throughout the
+stream.
+
+![Optimization-based MM-TTA and FIRM](assets/optimization_comparison.png)
 
 ## Results
 
-Protocol-matched severity-5 results with CAV-MAE on all 15 video and 6 audio
-corruption streams are shown below. Values are average top-1 accuracy (%).
+The following numbers use the same locally generated corruption streams,
+checkpoints, sample order, batch size, workers, and RTX 4090 for Source,
+AdaPGC, and FIRM. Accuracy is averaged equally over 15 video corruptions or
+6 audio corruptions at severity 5.
 
-| Dataset | Corrupted modality | Source | AdaPGC | FIRM | FIRM - AdaPGC |
-|---|---|---:|---:|---:|---:|
-| Kinetics50-C | Video | 60.487 | 66.853 | 66.832 | -0.021 |
-| Kinetics50-C | Audio | 69.248 | 73.054 | 73.432 | +0.378 |
-| VGGSound-C | Video | 56.035 | 57.295 | 58.296 | +1.001 |
-| VGGSound-C | Audio | 25.057 | 37.283 | 40.118 | +2.835 |
+| Dataset | Corrupted modality | Source | AdaPGC | FIRM |
+| --- | --- | ---: | ---: | ---: |
+| Kinetics50-C | Video | 60.487 | **66.853** | 66.832 |
+| Kinetics50-C | Audio | 69.248 | 73.054 | **73.432** |
+| VGGSound-C | Video | 56.035 | 57.295 | **58.296** |
+| VGGSound-C | Audio | 25.057 | 37.283 | **40.118** |
+| Four-group mean |  | 52.707 | 58.621 | **59.670** |
 
-On the same RTX 4090 protocol, FIRM used about 1 GB peak allocated GPU memory,
-updated zero network parameters, and was 2.72--6.17x faster than AdaPGC in
-end-to-end stream time. Exact speed depends on storage and data-loader speed.
+End-to-end time includes data loading, model inference, and adaptation over
+all streams in each group. Checkpoint construction is excluded. Peak memory
+is measured with `torch.cuda.max_memory_allocated`.
 
-## Repository layout
+| Dataset | Modality | Method | Time (min) | Peak memory (GiB) |
+| --- | --- | --- | ---: | ---: |
+| Kinetics50-C | Video | AdaPGC | 17.68 | 10.36 |
+|  |  | FIRM | 4.46 | 0.99 |
+| Kinetics50-C | Audio | AdaPGC | 7.01 | 8.60 |
+|  |  | FIRM | 2.57 | 0.99 |
+| VGGSound-C | Video | AdaPGC | 289.77 | 20.11 |
+|  |  | FIRM | 49.81 | 1.01 |
+| VGGSound-C | Audio | AdaPGC | 104.11 | 20.11 |
+|  |  | FIRM | 16.88 | 1.01 |
 
-```text
-firm/method.py          FIRM decision state
-models/                 CAV-MAE backbone and feature extraction
-run_firm.py             clean/single-corruption/all-corruption runner
-scripts/run_all21.sh    two-dataset benchmark launcher
-tools/summarize_results.py
-configs/labels/         Kinetics50 and VGGSound class mappings
-tests/                  CPU unit tests for the decision state
-```
+Sequential component results are provided below. The prototype stage is a
+small refinement on top of marginal rebalancing rather than a standalone
+adaptation method.
 
-## Environment
+| Variant | K50 video | K50 audio | VGG video | VGG audio |
+| --- | ---: | ---: | ---: | ---: |
+| Source | 60.487 | 69.248 | 56.035 | 25.057 |
+| Marginal rebalancing | 66.707 | 73.290 | 58.206 | 40.087 |
+| Full FIRM | **66.832** | **73.432** | **58.296** | **40.118** |
 
-The reported experiments used Python 3.12, PyTorch 2.5.1 + CUDA 12.4,
-torchvision 0.20.1, torchaudio 2.5.1, and an RTX 4090.
+## Installation
+
+The reported runs used Python 3.12, PyTorch 2.5.1, CUDA 12.4,
+torchvision 0.20.1, and torchaudio 2.5.1.
 
 ```bash
-conda create -n firm python=3.12 -y
-conda activate firm
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
+conda create -n firm-mmtta python=3.12 -y
+conda activate firm-mmtta
+
+python -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
   --index-url https://download.pytorch.org/whl/cu124
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-Alternatively:
+The same environment can also be created from `environment.yml`:
 
 ```bash
 conda env create -f environment.yml
-conda activate firm
+conda activate firm-mmtta
 ```
 
-Verify the method-level tests without downloading a dataset or checkpoint:
+The decision-state tests run on CPU and do not require a dataset or
+checkpoint:
 
 ```bash
-pytest -q
+python -m pytest -q
 ```
 
 ## Data and checkpoints
 
-Download the Kinetics50 and VGGSound benchmarks and corresponding CAV-MAE
-source models from the official
-[READ benchmark repository](https://github.com/XLearning-SCU/2024-ICLR-READ).
-This repository does not redistribute datasets or model weights.
+Kinetics50, VGGSound, the corruption protocol, and the CAV-MAE checkpoints
+are available through the
+[READ repository](https://github.com/XLearning-SCU/2024-ICLR-READ).
+Datasets and weights are not included here.
 
-FIRM consumes the same JSON stream format as READ/AdaPGC. Each file contains a
-`data` list, for example:
+FIRM reads the same JSON format as READ/AdaPGC:
 
 ```json
 {
   "data": [
     {
       "video_id": "sample_id",
-      "wav": "/absolute/path/to/sample_id.wav",
-      "video_path": "/absolute/path/to/image_frames",
+      "wav": "/path/to/sample_id.wav",
+      "video_path": "/path/to/sample_frames",
       "labels": "class_mid"
     }
   ]
 }
 ```
 
-Expected layout:
+One possible layout is:
 
 ```text
 data/json/ks50/
@@ -109,12 +136,13 @@ checkpoints/
   vgg_65.5.pth
 ```
 
-The JSON files may live anywhere; pass their roots explicitly. Paths inside
-the JSON files must point to the local audio and frame directories.
+Paths stored inside each JSON file must point to the local WAV files and
+frame directories. The label mappings used by the loader are under
+`configs/labels/`.
 
-## Run one stream
+## Running FIRM
 
-Kinetics50-C with video Gaussian noise at severity 5:
+Example for Kinetics50-C video Gaussian noise:
 
 ```bash
 python run_firm.py \
@@ -122,22 +150,23 @@ python run_firm.py \
   --json-root /path/to/json/ks50 \
   --label-csv configs/labels/class_labels_indices_ks50.csv \
   --checkpoint /path/to/cav_mae_ks50.pth \
-  --gpu 0 --batch-size 8 --num-workers 8 \
   --corruption-modality video \
   --corruption gaussian_noise \
   --severity 5 \
+  --gpu 0 \
+  --batch-size 8 \
+  --num-workers 8 \
   --output-dir outputs/ks50_video_gaussian_noise
 ```
 
-`result.csv` reports Source, rebalancing-only, and full FIRM accuracy. Labels
-are accessed only after FIRM emits a prediction and are used solely for metric
-calculation.
+`result.csv` contains Source, marginal-rebalancing, and full-FIRM accuracy,
+along with wall time, CUDA time, throughput, and peak allocated GPU memory.
+Ground-truth labels are not passed to FIRM; they are used only to compute the
+reported accuracy.
 
-## Run all streams
+To evaluate both datasets on clean data and all 21 corruption streams:
 
 ```bash
-chmod +x scripts/run_all21.sh
-
 JSON_KS50=/path/to/json/ks50 \
 JSON_VGG=/path/to/json/vgg \
 CHECKPOINT_KS50=/path/to/cav_mae_ks50.pth \
@@ -146,35 +175,45 @@ GPU=0 BATCH_SIZE=8 NUM_WORKERS=8 \
 bash scripts/run_all21.sh
 ```
 
-To run one dataset only, add `DATASETS=ks50` or `DATASETS=vggsound`.
-Completed groups are skipped when their `result.csv` already exists.
+Set `DATASETS=ks50` or `DATASETS=vggsound` to run only one dataset. Existing
+groups with a non-empty `result.csv` are skipped. The final summary is written
+to `outputs/firm_all21/summary.csv`.
 
-## Protocol notes
+## Experimental protocol
 
-- Stream order is sequential and deterministic.
-- Decision state is reset at each clean/corruption stream boundary.
-- The target prior is uniform, matching the approximately balanced benchmark
-  protocol. FIRM is not intended as a general arbitrary-label-shift method.
-- The released implementation retains the observed posterior prefix directly.
-  It is lightweight for these finite benchmark streams but is not
-  constant-memory for unbounded deployment.
-- The feature-extraction micro-batch does not change the sample-causal FIRM
-  update order.
+- Samples are processed in their JSON order without shuffling.
+- State is reset between clean/corruption streams.
+- The main experiments use a uniform reference prior.
+- Default parameters are 20 projection iterations, prototype temperature
+  0.07, and prototype evidence weight 0.25.
+- FIRM stores the posterior prefix directly. This implementation is intended
+  for finite benchmark streams and is not constant-memory for an unbounded
+  stream.
+
+## Repository layout
+
+```text
+firm/method.py          decision-state implementation
+models/                 CAV-MAE model and feature extraction
+run_firm.py             evaluation entry point
+scripts/run_all21.sh    clean and all-corruption launcher
+tools/summarize_results.py
+configs/labels/         class label mappings
+tests/test_firm.py      method-level CPU tests
+```
 
 ## Citation
 
-The paper citation will be added after publication. Until then, please cite
-this repository using [`CITATION.cff`](CITATION.cff).
+The paper reference will be added after publication. For now, citation
+metadata is provided in [`CITATION.cff`](CITATION.cff).
 
 ## Acknowledgements
 
-This code builds on
+This repository includes code derived from
 [CAV-MAE](https://github.com/YuanGongND/cav-mae),
 [READ](https://github.com/XLearning-SCU/2024-ICLR-READ), and
 [AdaPGC](https://github.com/XLearning-SCU/AdaPGC).
-We thank their authors for releasing code and benchmarks.
 
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
-

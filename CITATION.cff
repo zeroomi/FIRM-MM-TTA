@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this code, please cite the accompanying FIRM paper."
-title: "FIRM: Frozen Inference via Rebalanced Marginals"
+title: "FIRM: Frozen Inference with Rebalanced Marginals"
 type: software
 authors:
   - family-names: Deng
@@ -8,4 +8,3 @@ authors:
 version: 0.1.0
 date-released: 2026-09-02
 license: Apache-2.0
-
